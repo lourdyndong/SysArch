@@ -53,6 +53,122 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['toggle_pc_broken'])) 
 }
 
 /* ---------------------------------------------------------------
+   Export Sit-in Records (CSV, PDF, DOC)
+   --------------------------------------------------------------- */
+if (isset($_GET['export_sitins'])) {
+    $format = $_GET['export_sitins'] ?? 'csv';
+    
+    $conn = getConnection();
+    $result = $conn->query("SELECT * FROM sit_in_records ORDER BY id DESC");
+    $records = [];
+    if ($result) while ($row = $result->fetch_assoc()) $records[] = $row;
+    $conn->close();
+    
+    if ($format === 'csv') {
+        header('Content-Type: text/csv');
+        header('Content-Disposition: attachment; filename="sit_in_records.csv"');
+        $output = fopen('php://output', 'w');
+        fputcsv($output, ['ID', 'ID Number', 'Student Name', 'Purpose', 'Lab', 'Session', 'Status', 'Reward Points', 'Task Points', 'Created At', 'Timeout At']);
+        foreach ($records as $r) {
+            fputcsv($output, [
+                $r['id'],
+                $r['id_number'],
+                $r['student_name'],
+                $r['purpose'],
+                $r['lab'],
+                $r['session'],
+                $r['status'],
+                $r['reward_points'],
+                $r['task_completed_points'],
+                $r['created_at'],
+                $r['timeout_at']
+            ]);
+        }
+        fclose($output);
+        exit;
+    } elseif ($format === 'pdf') {
+        require_once 'db.php';
+        ?>
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>Sit-in Records</title>
+            <style>
+                body { font-family: Arial, sans-serif; padding: 20px; }
+                h1 { text-align: center; }
+                table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+                th, td { border: 1px solid #ddd; padding: 8px; text-align: left; font-size: 12px; }
+                th { background-color: #4CAF50; color: white; }
+                tr:nth-child(even) { background-color: #f2f2f2; }
+            </style>
+        </head>
+        <body>
+            <h1>Sit-in Records</h1>
+            <table>
+                <tr>
+                    <th>ID</th>
+                    <th>ID Number</th>
+                    <th>Student Name</th>
+                    <th>Purpose</th>
+                    <th>Lab</th>
+                    <th>Session</th>
+                    <th>Status</th>
+                    <th>Reward Pts</th>
+                    <th>Task Pts</th>
+                    <th>Created</th>
+                    <th>Timeout</th>
+                </tr>
+                <?php foreach ($records as $r): ?>
+                <tr>
+                    <td><?= $r['id'] ?></td>
+                    <td><?= $r['id_number'] ?></td>
+                    <td><?= $r['student_name'] ?></td>
+                    <td><?= $r['purpose'] ?></td>
+                    <td><?= $r['lab'] ?></td>
+                    <td><?= $r['session'] ?></td>
+                    <td><?= $r['status'] ?></td>
+                    <td><?= $r['reward_points'] ?></td>
+                    <td><?= $r['task_completed_points'] ?></td>
+                    <td><?= $r['created_at'] ?></td>
+                    <td><?= $r['timeout_at'] ?></td>
+                </tr>
+                <?php endforeach; ?>
+            </table>
+        </body>
+        </html>
+        <?php
+        exit;
+    } elseif ($format === 'doc') {
+        header('Content-Type: application/vnd.ms-word');
+        header('Content-Disposition: attachment; filename="sit_in_records.doc"');
+        echo '<html><head><meta charset="utf-8"><style>';
+        echo 'body { font-family: Arial; } table { border-collapse: collapse; width: 100%; } ';
+        echo 'th, td { border: 1px solid #000; padding: 5px; } </style></head><body>';
+        echo '<h1>Sit-in Records</h1>';
+        echo '<table><tr><th>ID</th><th>ID Number</th><th>Student Name</th><th>Purpose</th><th>Lab</th><th>Session</th><th>Status</th><th>Reward Pts</th><th>Task Pts</th><th>Created</th><th>Timeout</th></tr>';
+        foreach ($records as $r) {
+            echo '<tr>';
+            echo '<td>' . $r['id'] . '</td>';
+            echo '<td>' . $r['id_number'] . '</td>';
+            echo '<td>' . $r['student_name'] . '</td>';
+            echo '<td>' . $r['purpose'] . '</td>';
+            echo '<td>' . $r['lab'] . '</td>';
+            echo '<td>' . $r['session'] . '</td>';
+            echo '<td>' . $r['status'] . '</td>';
+            echo '<td>' . $r['reward_points'] . '</td>';
+            echo '<td>' . $r['task_completed_points'] . '</td>';
+            echo '<td>' . $r['created_at'] . '</td>';
+            echo '<td>' . $r['timeout_at'] . '</td>';
+            echo '</tr>';
+        }
+        echo '</table></body></html>';
+        exit;
+    }
+    header("Location: admindashboard.php");
+    exit;
+}
+
+/* ---------------------------------------------------------------
    AJAX: Get available PCs for a room
    --------------------------------------------------------------- */
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['get_available_pcs'])) {
@@ -879,6 +995,12 @@ if (!empty($_GET['section'])) {
   <div class="admin-section" id="sec-sitinrecords">
     <div class="page-title">Sit-in Records</div>
     <div style="margin-bottom:12px;font-size:.9rem;color:var(--text-muted);">Admin may award 1 reward point for a well-performed session.</div>
+    <div style="margin-bottom:15px;">
+      <span style="font-weight:600;margin-right:10px;">Export:</span>
+      <a href="?export_sitins=csv" class="btn-export" style="background:#28a745;color:#fff;padding:6px 12px;border-radius:4px;text-decoration:none;margin-right:5px;font-size:0.85rem;">📄 CSV</a>
+      <a href="?export_sitins=pdf" class="btn-export" style="background:#dc3545;color:#fff;padding:6px 12px;border-radius:4px;text-decoration:none;margin-right:5px;font-size:0.85rem;">📑 PDF</a>
+      <a href="?export_sitins=doc" class="btn-export" style="background:#007bff;color:#fff;padding:6px 12px;border-radius:4px;text-decoration:none;font-size:0.85rem;">📝 DOC</a>
+    </div>
     <div class="a-card">
       <div class="a-card-body">
         <div class="room-selector">
